@@ -51,3 +51,26 @@ cat /proc/sys/net/ipv4/tcp_syn_retries
 
 ![syn-retry](imgs/syn_retry.png)
 
+如果tcp三次握手的第二次握手丢包，会出现如下图情况，客户端的SYN会超时重发，服务端SYN/ACK也会超时重发，不过客户端SYN重发后会重置SYN/ACK的重传定时器，不会达到tcp_synack_retries的最大重传次数。直到SYN达到最大重传次数后，不再重置服务端SYN/ACK超时定时器，才会重发一直达到最大次数5次
+
+![synack_retry](imgs/synack_retry.png)
+
+这里设置服务端丢掉第三次握手的ACK，来达到第二次握手SYN/ACK超时重传。可以看到这里SYN/ACK超时重传了5次。每一次重传时间是上次的2倍，指数增长。
+
+```shell
+cat /proc/sys/net/ipv4/tcp_synack_retries
+5
+```
+
+![tcp_synack_retry](imgs/tcp_synack_retry.png)
+
+传输segment数据包的重传，TCP 建立连接后的数据包传输，最大超时重传次数是由 `tcp_retries2` 指定，默认值是 15 次。
+
+```shell
+cat /proc/sys/net/ipv4/tcp_retries2
+15
+```
+
+这里建立TCP连接后重传时间是由RTO决定的，这个RTO是动态变化的。这里设置iptables防火墙让服务端丢弃客户端发送ACK标志的数据包，可以看到PSH_ACK数据包一直发送了15次后，就主动断开连接。这里可以注意到它的重传时间间隔首次是动态按照RTO来设置的，第一次大约为0.2s，第二次为0.4s，每一次重传时间是上次的2倍，指数增长，直到达到15次。
+
+![push_data](imgs/push_data.png)
